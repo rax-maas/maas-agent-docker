@@ -1,0 +1,48 @@
+#cloud-config
+ coreos:
+   units:
+   - name: rackspace-monitoring-agent-token.service
+     command: start
+     runtime: yes
+     content: |
+        [Unit]
+        Description=Rackspace Monitoring Agent Token Creation
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/mkdir -p /opt/rackspace-monitoring-agent/logs
+        ExecStart=/bin/bash -c 'echo "monitoring_token TOKEN" > /opt/rackspace-monitoring-agent/rackspace-monitoring-agent.cfg'
+   - name: rackspace-monitoring-agent-id.service
+     command: start
+     runtime: yes
+     content: |
+        [Unit]
+        Description=Rackspace Monitoring Agent Id Creation
+
+        [Service]
+        After=rackspace-monitoring-agent-token.service
+        Requires=rackspace-monitoring-agent-token.service
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/bin/bash -c '{ echo -n "monitoring_id " ; cat /var/lib/cloud/data/instance-id } >> /opt/rackspace-monitoring-agent/rackspace-monitoring-agent.cfg'
+   - name: rackspace-monitoring-agent.service
+     command: start
+     runtime: yes
+     content: |
+        [Unit]
+        Description=Rackspace Monitoring Agent
+
+        [Service]
+        After=rackspace-monitoring-agent-token.service rackspace-monitoring-agent-id.service
+        Requires=rackspace-monitoring-agent-token.service rackspace-monitoring-agent-id.service
+        ExecStart=/usr/bin/docker run \
+           -v /proc:/proc \
+           -v /dev:/dev \
+           -v /dev/pts:/dev/pts \
+           -v /sys:/sys \
+           -v /opt/rackspace-monitoring-agent/rackspace-monitoring-agent.cfg:/etc/rackspace-monitoring-agent.cfg \
+           -v /opt/rackspace-monitoring-agent/logs:/var/log \
+           rackerlabs/maas-agent-docker
+        Restart=always
+        RestartSec=30s
